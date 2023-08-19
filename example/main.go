@@ -1,11 +1,9 @@
 package main
 
 import (
-	"runtime"
-	"sync"
-
 	"github.com/tomr-ninja/di"
 	"github.com/tomr-ninja/di/example/services"
+	"time"
 )
 
 // Dependency tree:
@@ -13,35 +11,29 @@ import (
 // A -> D
 
 func main() {
-	sr := di.NewRegistry()
+	sr := indi.NewRegistry()
 
-	di.SetService(sr, "serviceA", func(r *di.Registry) *services.ServiceA {
+	// 10 seconds
+	indi.SetService(sr, "A", func(r *indi.Registry) *services.A {
 		return services.NewServiceA(
-			di.GetService[*services.ServiceB](r, "serviceB"),
-			di.GetService[*services.ServiceD](r, "serviceD"),
+			indi.GetService[*services.B](r, "B"),
+			indi.GetService[*services.D](r, "D"),
 		)
 	})
-	di.SetService(sr, "serviceB", func(r *di.Registry) *services.ServiceB {
-		return services.NewServiceB(di.GetService[*services.ServiceC](r, "serviceC"))
+	// 15 seconds
+	indi.SetService(sr, "B", func(r *indi.Registry) *services.B {
+		return services.NewServiceB(indi.GetService[*services.C](r, "C"))
 	})
-	di.SetService(sr, "serviceC", func(r *di.Registry) *services.ServiceC {
+	// 5 seconds
+	indi.SetService(sr, "C", func(r *indi.Registry) *services.C {
 		return services.NewServiceC()
 	})
-	di.SetService(sr, "serviceD", func(r *di.Registry) *services.ServiceD {
+	// 10 seconds
+	indi.SetService(sr, "D", func(r *indi.Registry) *services.D {
 		return services.NewServiceD()
 	})
 
-	serviceA := di.GetService[*services.ServiceA](sr, "serviceA")
-
-	numCPU := runtime.NumCPU()
-	var wg sync.WaitGroup
-	wg.Add(numCPU)
-	for i := 0; i < numCPU; i++ {
-		go func() {
-			println(serviceA.EvenRandIntUpToTen())
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
+	now := time.Now()
+	indi.InitAll(sr)
+	println(time.Since(now).String()) // should be 30 seconds, not 40
 }
