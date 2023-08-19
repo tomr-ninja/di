@@ -91,7 +91,7 @@ func main() {
 You casually declare all the stuff regardless of the order, and **indi** takes care of it.
 
 P.S. Generics are used instead of `interface{}` on purpose:
-1. To avoid type assertions.
+1. To avoid type assertions (well, there are still some under the hood).
 2. To force you to place all the dirty initialization with implemented types in `main` package, or `init` package, or
 wherever but far from the actual code that use those dependencies.
 3. To support the principle "accept interfaces, pass actual types".

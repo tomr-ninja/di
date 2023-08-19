@@ -25,9 +25,7 @@ func NewRegistry() *Registry {
 	}
 }
 
-func SetService[S any](
-	r *Registry, name string, constructor ServiceConstructor[S],
-) {
+func SetService[S any](r *Registry, name string, constructor ServiceConstructor[S]) {
 	r.services[name] = &serviceDef[S]{
 		constructor: constructor,
 		once:        sync.Once{},
