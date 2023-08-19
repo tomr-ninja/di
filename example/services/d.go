@@ -4,10 +4,10 @@ import "time"
 
 type D struct{}
 
-func NewServiceD() *D {
+func NewServiceD() (*D, error) {
 	time.Sleep(10 * time.Second)
 
-	return &D{}
+	return &D{}, nil
 }
 
 func (d *D) Ten() int {

@@ -13,10 +13,10 @@ type testService struct {
 	deps  []*testService
 }
 
-func createTestService(d time.Duration, deps ...*testService) *testService {
+func createTestService(d time.Duration, deps ...*testService) (*testService, error) {
 	time.Sleep(d)
 
-	return &testService{true, deps}
+	return &testService{true, deps}, nil
 }
 
 func TestInit(t *testing.T) {
@@ -27,37 +27,37 @@ func TestInit(t *testing.T) {
 	//       |
 	//       +---> T6
 
-	indi.SetService("T1", func(r *indi.Registry) *testService {
+	indi.SetService("T1", func(r *indi.Registry) (*testService, error) {
 		return createTestService(
 			10*time.Millisecond,
 			indi.GetServiceFromRegistry[*testService](r, "T2"),
 			indi.GetServiceFromRegistry[*testService](r, "T4"),
 		)
 	})
-	indi.SetService("T2", func(r *indi.Registry) *testService {
+	indi.SetService("T2", func(r *indi.Registry) (*testService, error) {
 		return createTestService(
 			10*time.Millisecond,
 			indi.GetServiceFromRegistry[*testService](r, "T3"),
 		)
 	})
-	indi.SetService("T3", func(r *indi.Registry) *testService {
+	indi.SetService("T3", func(r *indi.Registry) (*testService, error) {
 		return createTestService(
 			10 * time.Millisecond,
 		)
 	})
-	indi.SetService("T4", func(r *indi.Registry) *testService {
+	indi.SetService("T4", func(r *indi.Registry) (*testService, error) {
 		return createTestService(
 			10*time.Millisecond,
 			indi.GetServiceFromRegistry[*testService](r, "T5"),
 			indi.GetServiceFromRegistry[*testService](r, "T6"),
 		)
 	})
-	indi.SetService("T5", func(r *indi.Registry) *testService {
+	indi.SetService("T5", func(r *indi.Registry) (*testService, error) {
 		return createTestService(
 			10 * time.Millisecond,
 		)
 	})
-	indi.SetService("T6", func(r *indi.Registry) *testService {
+	indi.SetService("T6", func(r *indi.Registry) (*testService, error) {
 		return createTestService(
 			10 * time.Millisecond,
 		)
@@ -72,9 +72,36 @@ func TestInit(t *testing.T) {
 	}
 }
 
+func TestInit_FailEarly(t *testing.T) {
+	// Dependency tree:
+	// T1 -> T2
+	// T2 fails, no need to wait for T1 then
+
+	indi.SetService("T1", func(r *indi.Registry) (*testService, error) {
+		return createTestService(
+			10*time.Millisecond,
+			indi.GetServiceFromRegistry[*testService](r, "T2"),
+		)
+	})
+	indi.SetService("T2", func(r *indi.Registry) (*testService, error) {
+		time.Sleep(time.Millisecond)
+
+		return nil, fmt.Errorf("T2 failed")
+	})
+
+	start := time.Now()
+	err := indi.Init()
+	if spent := time.Since(start); spent > 2*time.Millisecond { // +1ms threshold
+		t.Errorf("init was supposed to finish by ~1ms, but actually took %v", spent)
+	}
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
 func TestGetService(t *testing.T) {
 	t.Parallel()
-	indi.SetService("T1", func(r *indi.Registry) *testService {
+	indi.SetService("T1", func(r *indi.Registry) (*testService, error) {
 		return createTestService(
 			10 * time.Millisecond,
 		)
@@ -108,7 +135,7 @@ func TestPanic(t *testing.T) {
 		type testService2 struct{}
 		r := indi.NewRegistry()
 
-		indi.SetServiceFromRegistry[*testService](r, "T1", func(r *indi.Registry) *testService {
+		indi.SetServiceFromRegistry[*testService](r, "T1", func(r *indi.Registry) (*testService, error) {
 			return createTestService(0)
 		})
 

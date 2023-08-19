@@ -15,10 +15,10 @@ type (
 	}
 )
 
-func NewServiceA(b IB, d ID) *A {
+func NewServiceA(b IB, d ID) (*A, error) {
 	time.Sleep(10 * time.Second)
 
-	return &A{b: b, d: d}
+	return &A{b: b, d: d}, nil
 }
 
 func (a *A) EvenRandIntUpToTen() int {

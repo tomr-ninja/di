@@ -7,10 +7,10 @@ import (
 
 type C struct{}
 
-func NewServiceC() *C {
+func NewServiceC() (*C, error) {
 	time.Sleep(5 * time.Second)
 
-	return &C{}
+	return &C{}, nil
 }
 
 func (c *C) RandInt() int {

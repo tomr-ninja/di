@@ -1,8 +1,11 @@
 package indi
 
 import (
+	"context"
 	"errors"
 	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -12,7 +15,7 @@ var (
 	errWrongDefType        = errors.New("wrong def type")
 )
 
-type ServiceConstructor[S any] func(*Registry) S
+type ServiceConstructor[S any] func(*Registry) (S, error)
 
 // Registry is a collection of services.
 type (
@@ -64,32 +67,40 @@ func GetService[S any](name string) S {
 	return GetServiceFromRegistry[S](defaultRegistry, name)
 }
 
-func (def *serviceDef[S]) init(r *Registry) {
+func (def *serviceDef[S]) init(r *Registry) (err error) {
 	def.once.Do(func() {
-		def.service = def.constructor(r)
+		def.service, err = def.constructor(r)
 	})
+
+	return err
 }
 
-func InitRegistry(r *Registry) {
+func InitRegistry(r *Registry) error {
 	type initable interface {
-		init(r *Registry)
+		init(r *Registry) error
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(r.services))
-
+	eg, ctx := errgroup.WithContext(context.Background())
 	for _, c := range r.services {
 		def := c.(initable)
+		eg.Go(func() error {
+			ch := make(chan error)
+			go func() {
+				ch <- def.init(r)
+			}()
 
-		go func(i initable) {
-			i.init(r)
-			wg.Done()
-		}(def)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case err := <-ch:
+				return err
+			}
+		})
 	}
 
-	wg.Wait()
+	return eg.Wait()
 }
 
-func Init() {
-	InitRegistry(defaultRegistry)
+func Init() error {
+	return InitRegistry(defaultRegistry)
 }

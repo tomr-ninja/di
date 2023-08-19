@@ -14,10 +14,10 @@ type (
 	}
 )
 
-func NewServiceB(c IC) *B {
+func NewServiceB(c IC) (*B, error) {
 	time.Sleep(15 * time.Second)
 
-	return &B{c: c}
+	return &B{c: c}, nil
 }
 
 func (b *B) EvenRandInt() int {
