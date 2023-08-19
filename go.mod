@@ -1,3 +1,3 @@
-module github.com/tomr-ninja/di
+module github.com/tomr-ninja/indi
 
 go 1.21

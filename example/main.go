@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/tomr-ninja/di"
-	"github.com/tomr-ninja/di/example/services"
 	"time"
+
+	"github.com/tomr-ninja/indi"
+	"github.com/tomr-ninja/indi/example/services"
 )
 
 // Dependency tree:

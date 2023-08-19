@@ -99,7 +99,7 @@ wherever but far from the actual code that use those dependencies.
 Enjoy!
 
 TODO:
-- [ ] Add tests
+- [X] Add tests
 - [X] Add default global registry
 - [ ] Support parallelism limitation (blocking variation)
 - [ ] Support cleanup
