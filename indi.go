@@ -4,6 +4,8 @@ import (
 	"sync"
 )
 
+var defaultRegistry = NewRegistry()
+
 type ServiceConstructor[S any] func(*Registry) S
 
 // Registry is a collection of services.
@@ -25,14 +27,14 @@ func NewRegistry() *Registry {
 	}
 }
 
-func SetService[S any](r *Registry, name string, constructor ServiceConstructor[S]) {
+func SetServiceFromRegistry[S any](r *Registry, name string, constructor ServiceConstructor[S]) {
 	r.services[name] = &serviceDef[S]{
 		constructor: constructor,
 		once:        sync.Once{},
 	}
 }
 
-func GetService[S any](r *Registry, name string) S {
+func GetServiceFromRegistry[S any](r *Registry, name string) S {
 	c, ok := r.services[name]
 	if !ok {
 		panic("tried to get unregistered service")
@@ -48,13 +50,21 @@ func GetService[S any](r *Registry, name string) S {
 	return def.service
 }
 
+func SetService[S any](name string, constructor ServiceConstructor[S]) {
+	SetServiceFromRegistry[S](defaultRegistry, name, constructor)
+}
+
+func GetService[S any](name string) S {
+	return GetServiceFromRegistry[S](defaultRegistry, name)
+}
+
 func (def *serviceDef[S]) init(r *Registry) {
 	def.once.Do(func() {
 		def.service = def.constructor(r)
 	})
 }
 
-func InitAll(r *Registry) {
+func InitRegistry(r *Registry) {
 	type initable interface {
 		init(r *Registry)
 	}
@@ -72,4 +82,8 @@ func InitAll(r *Registry) {
 	}
 
 	wg.Wait()
+}
+
+func Init() {
+	InitRegistry(defaultRegistry)
 }

@@ -102,5 +102,6 @@ Enjoy!
 
 TODO:
 - [ ] Add tests
+- [X] Add default global registry
 - [ ] Support parallelism limitation (blocking variation)
 - [ ] Support cleanup
