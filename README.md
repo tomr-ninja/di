@@ -1,4 +1,4 @@
-**indi** is not a DI, **indi** is a simple as hell lazy initializer.
+**indi** is Not a DI, **indi** is a simple as hell lazy initializer.
 
 The real beauty of this tiny module is that it doesn't let you stray too far from the Go style into the dark world of
 Java.
@@ -50,7 +50,7 @@ func initRPCConns(...) {
 }
 ```
 
-You not sure anymore that you do it in the bost order. So you need a sort of dependency graph.
+You're not sure anymore that you do it in the best order. So you need a sort of dependency graph.
 
 Here comes the **indi**.
 
