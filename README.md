@@ -1,9 +1,13 @@
-**indi** is Not a DI, **indi** is a simple as hell lazy initializer.
+# **indi** is Not a DI
+
+## **indi** is a simple as hell lazy initializer
 
 The real beauty of this tiny module is that it doesn't let you stray too far from the Go style into the dark world of
 Java.
 
 The problem it solves is only initialization. It doesn't do anything else.
+
+## The problem
 
 Imagine you have a giant application that access same stateful resources in different places. You write something like
 this (go style!):
@@ -52,7 +56,7 @@ func initRPCConns(...) {
 
 You're not sure anymore that you do it in the best order. So you need a sort of dependency graph.
 
-Here comes the **indi**.
+## Here comes the **indi**
 
 ```go
 // Dependency tree:
@@ -101,7 +105,8 @@ wherever but far from the actual code that use those dependencies.
 
 Enjoy!
 
-TODO:
+## TODO:
+
 - [X] Add tests
 - [X] Add default global registry
 - [ ] Support parallelism limitation (blocking variation)
