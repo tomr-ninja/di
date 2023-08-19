@@ -36,14 +36,14 @@ func NewRegistry() *Registry {
 	}
 }
 
-func SetServiceFromRegistry[S any](r *Registry, name string, constructor ServiceConstructor[S]) {
+func SetFromRegistry[S any](r *Registry, name string, constructor ServiceConstructor[S]) {
 	r.services[name] = &serviceDef[S]{
 		constructor: constructor,
 		once:        sync.Once{},
 	}
 }
 
-func GetServiceFromRegistry[S any](r *Registry, name string) S {
+func GetFromRegistry[S any](r *Registry, name string) (S, error) {
 	c, ok := r.services[name]
 	if !ok {
 		panic(errUnregisteredService)
@@ -54,17 +54,15 @@ func GetServiceFromRegistry[S any](r *Registry, name string) S {
 		panic(errWrongDefType)
 	}
 
-	def.init(r)
-
-	return def.service
+	return def.service, def.init(r)
 }
 
-func SetService[S any](name string, constructor ServiceConstructor[S]) {
-	SetServiceFromRegistry[S](defaultRegistry, name, constructor)
+func Set[S any](name string, constructor ServiceConstructor[S]) {
+	SetFromRegistry[S](defaultRegistry, name, constructor)
 }
 
-func GetService[S any](name string) S {
-	return GetServiceFromRegistry[S](defaultRegistry, name)
+func Get[S any](name string) (S, error) {
+	return GetFromRegistry[S](defaultRegistry, name)
 }
 
 func (def *serviceDef[S]) init(r *Registry) (err error) {

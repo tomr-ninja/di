@@ -12,24 +12,33 @@ import (
 // A -> D
 
 func main() {
-	// 10 seconds
-	indi.SetService("A", func(r *indi.Registry) (*services.A, error) {
-		return services.NewServiceA(
-			indi.GetServiceFromRegistry[*services.B](r, "B"),
-			indi.GetServiceFromRegistry[*services.D](r, "D"),
+	indi.Set("A", func(r *indi.Registry) (a *services.A, err error) {
+		var (
+			b *services.B
+			d *services.D
 		)
+		if b, err = indi.GetFromRegistry[*services.B](r, "B"); err != nil {
+			return nil, err
+		}
+		if d, err = indi.GetFromRegistry[*services.D](r, "D"); err != nil {
+			return nil, err
+		}
+
+		return services.NewServiceA(b, d) // 10 seconds
 	})
-	// 15 seconds
-	indi.SetService("B", func(r *indi.Registry) (*services.B, error) {
-		return services.NewServiceB(indi.GetServiceFromRegistry[*services.C](r, "C"))
+	indi.Set("B", func(r *indi.Registry) (b *services.B, err error) {
+		var c *services.C
+		if c, err = indi.GetFromRegistry[*services.C](r, "C"); err != nil {
+			return nil, err
+		}
+
+		return services.NewServiceB(c) // 15 seconds
 	})
-	// 5 seconds
-	indi.SetService("C", func(r *indi.Registry) (*services.C, error) {
-		return services.NewServiceC()
+	indi.Set("C", func(r *indi.Registry) (*services.C, error) {
+		return services.NewServiceC() // 5 seconds
 	})
-	// 10 seconds
-	indi.SetService("D", func(r *indi.Registry) (*services.D, error) {
-		return services.NewServiceD()
+	indi.Set("D", func(r *indi.Registry) (*services.D, error) {
+		return services.NewServiceD() // 10 seconds
 	})
 
 	now := time.Now()

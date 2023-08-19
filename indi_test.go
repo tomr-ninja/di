@@ -27,44 +27,52 @@ func TestInit(t *testing.T) {
 	//       |
 	//       +---> T6
 
-	indi.SetService("T1", func(r *indi.Registry) (*testService, error) {
-		return createTestService(
-			10*time.Millisecond,
-			indi.GetServiceFromRegistry[*testService](r, "T2"),
-			indi.GetServiceFromRegistry[*testService](r, "T4"),
-		)
+	indi.Set("T1", func(r *indi.Registry) (_ *testService, err error) {
+		var t2, t4 *testService
+		if t2, err = indi.GetFromRegistry[*testService](r, "T2"); err != nil {
+			return nil, err
+		}
+		if t4, err = indi.GetFromRegistry[*testService](r, "T4"); err != nil {
+			return nil, err
+		}
+
+		return createTestService(10*time.Millisecond, t2, t4)
 	})
-	indi.SetService("T2", func(r *indi.Registry) (*testService, error) {
-		return createTestService(
-			10*time.Millisecond,
-			indi.GetServiceFromRegistry[*testService](r, "T3"),
-		)
+	indi.Set("T2", func(r *indi.Registry) (_ *testService, err error) {
+		var t3 *testService
+		if t3, err = indi.GetFromRegistry[*testService](r, "T3"); err != nil {
+			return nil, err
+		}
+
+		return createTestService(10*time.Millisecond, t3)
 	})
-	indi.SetService("T3", func(r *indi.Registry) (*testService, error) {
+	indi.Set("T3", func(r *indi.Registry) (_ *testService, err error) {
 		return createTestService(
 			10 * time.Millisecond,
 		)
 	})
-	indi.SetService("T4", func(r *indi.Registry) (*testService, error) {
-		return createTestService(
-			10*time.Millisecond,
-			indi.GetServiceFromRegistry[*testService](r, "T5"),
-			indi.GetServiceFromRegistry[*testService](r, "T6"),
-		)
+	indi.Set("T4", func(r *indi.Registry) (_ *testService, err error) {
+		var t5, t6 *testService
+		if t5, err = indi.GetFromRegistry[*testService](r, "T5"); err != nil {
+			return nil, err
+		}
+		if t6, err = indi.GetFromRegistry[*testService](r, "T6"); err != nil {
+			return nil, err
+		}
+
+		return createTestService(10*time.Millisecond, t5, t6)
 	})
-	indi.SetService("T5", func(r *indi.Registry) (*testService, error) {
-		return createTestService(
-			10 * time.Millisecond,
-		)
+	indi.Set("T5", func(r *indi.Registry) (_ *testService, err error) {
+		return createTestService(10 * time.Millisecond)
 	})
-	indi.SetService("T6", func(r *indi.Registry) (*testService, error) {
-		return createTestService(
-			10 * time.Millisecond,
-		)
+	indi.Set("T6", func(r *indi.Registry) (_ *testService, err error) {
+		return createTestService(10 * time.Millisecond)
 	})
 
 	start := time.Now()
-	indi.Init()
+	if err := indi.Init(); err != nil {
+		t.Error(err)
+	}
 	spent := time.Since(start)
 
 	if spent > 32*time.Millisecond { // +2ms threshold
@@ -77,13 +85,15 @@ func TestInit_FailEarly(t *testing.T) {
 	// T1 -> T2
 	// T2 fails, no need to wait for T1 then
 
-	indi.SetService("T1", func(r *indi.Registry) (*testService, error) {
-		return createTestService(
-			10*time.Millisecond,
-			indi.GetServiceFromRegistry[*testService](r, "T2"),
-		)
+	indi.Set("T1", func(r *indi.Registry) (_ *testService, err error) {
+		var t2 *testService
+		if t2, err = indi.GetFromRegistry[*testService](r, "T2"); err != nil {
+			return nil, err
+		}
+
+		return createTestService(10*time.Millisecond, t2)
 	})
-	indi.SetService("T2", func(r *indi.Registry) (*testService, error) {
+	indi.Set("T2", func(r *indi.Registry) (*testService, error) {
 		time.Sleep(time.Millisecond)
 
 		return nil, fmt.Errorf("T2 failed")
@@ -101,7 +111,7 @@ func TestInit_FailEarly(t *testing.T) {
 
 func TestGetService(t *testing.T) {
 	t.Parallel()
-	indi.SetService("T1", func(r *indi.Registry) (*testService, error) {
+	indi.Set("T1", func(r *indi.Registry) (*testService, error) {
 		return createTestService(
 			10 * time.Millisecond,
 		)
@@ -112,7 +122,10 @@ func TestGetService(t *testing.T) {
 			t.Parallel()
 
 			start := time.Now()
-			s := indi.GetService[*testService]("T1")
+			s, err := indi.Get[*testService]("T1")
+			if err != nil {
+				t.Error(err)
+			}
 			if s.ready != true {
 				t.Error()
 			}
@@ -127,7 +140,7 @@ func TestGetService(t *testing.T) {
 func TestPanic(t *testing.T) {
 	t.Run("get unregistered service", func(t *testing.T) {
 		assertPanic(t, func(t *testing.T) {
-			_ = indi.GetServiceFromRegistry[*testService](indi.NewRegistry(), "T42")
+			_, _ = indi.GetFromRegistry[*testService](indi.NewRegistry(), "T42")
 		})
 	})
 
@@ -135,12 +148,12 @@ func TestPanic(t *testing.T) {
 		type testService2 struct{}
 		r := indi.NewRegistry()
 
-		indi.SetServiceFromRegistry[*testService](r, "T1", func(r *indi.Registry) (*testService, error) {
+		indi.SetFromRegistry[*testService](r, "T1", func(r *indi.Registry) (*testService, error) {
 			return createTestService(0)
 		})
 
 		assertPanic(t, func(t *testing.T) {
-			_ = indi.GetServiceFromRegistry[*testService2](r, "T1")
+			_, _ = indi.GetFromRegistry[*testService2](r, "T1")
 		})
 	})
 
