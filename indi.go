@@ -1,10 +1,16 @@
 package indi
 
 import (
+	"errors"
 	"sync"
 )
 
-var defaultRegistry = NewRegistry()
+var (
+	defaultRegistry = NewRegistry()
+
+	errUnregisteredService = errors.New("tried to get unregistered service")
+	errWrongDefType        = errors.New("wrong def type")
+)
 
 type ServiceConstructor[S any] func(*Registry) S
 
@@ -37,12 +43,12 @@ func SetServiceFromRegistry[S any](r *Registry, name string, constructor Service
 func GetServiceFromRegistry[S any](r *Registry, name string) S {
 	c, ok := r.services[name]
 	if !ok {
-		panic("tried to get unregistered service")
+		panic(errUnregisteredService)
 	}
 
 	def, ok := c.(*serviceDef[S])
 	if !ok {
-		panic("wrong def type")
+		panic(errWrongDefType)
 	}
 
 	def.init(r)
