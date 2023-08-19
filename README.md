@@ -64,32 +64,41 @@ You're not sure anymore that you do it in the best order. So you need a sort of 
 // A -> D
 
 func main() {
-    // 10 seconds
-    indi.SetService("A", func(r *indi.Registry) (*services.A, error) {
-        return services.NewServiceA(
-            indi.GetServiceFromRegistry[*services.B](r, "B"),
-            indi.GetServiceFromRegistry[*services.D](r, "D"),
-        )
-    })
-    // 15 seconds
-    indi.SetService("B", func(r *indi.Registry) (*services.B, error) {
-        return services.NewServiceB(indi.GetServiceFromRegistry[*services.C](r, "C"))
-    })
-    // 5 seconds
-    indi.SetService("C", func(r *indi.Registry) (*services.C, error) {
-        return services.NewServiceC()
-    })
-    // 10 seconds
-    indi.SetService("D", func(r *indi.Registry) (*services.D, error) {
-        return services.NewServiceD()
-    })
-    
-    now := time.Now()
-    if err := indi.Init(); err != nil {
-        panic(err)
-    }
-	
-    println(time.Since(now).Seconds()) // should be 30 seconds, not 40
+	indi.Set("A", func(r *indi.Registry) (a *services.A, err error) {
+		var (
+			b *services.B
+			d *services.D
+		)
+		if b, err = indi.GetFromRegistry[*services.B](r, "B"); err != nil {
+			return nil, err
+		}
+		if d, err = indi.GetFromRegistry[*services.D](r, "D"); err != nil {
+			return nil, err
+		}
+
+		return services.NewServiceA(b, d) // 10 seconds
+	})
+	indi.Set("B", func(r *indi.Registry) (b *services.B, err error) {
+		var c *services.C
+		if c, err = indi.GetFromRegistry[*services.C](r, "C"); err != nil {
+			return nil, err
+		}
+
+		return services.NewServiceB(c) // 15 seconds
+	})
+	indi.Set("C", func(r *indi.Registry) (*services.C, error) {
+		return services.NewServiceC() // 5 seconds
+	})
+	indi.Set("D", func(r *indi.Registry) (*services.D, error) {
+		return services.NewServiceD() // 10 seconds
+	})
+
+	now := time.Now()
+	if err := indi.Init(); err != nil {
+		panic(err)
+	}
+
+	println(time.Since(now).Seconds()) // should be 30 seconds, not 40
 }
 ```
 
