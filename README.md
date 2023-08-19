@@ -60,31 +60,29 @@ Here comes the **indi**.
 // A -> D
 
 func main() {
-	sr := indi.NewRegistry()
-
-	// 10 seconds
-	indi.SetService(sr, "A", func(r *indi.Registry) *services.A {
-		return services.NewServiceA(
-			indi.GetService[*services.B](r, "B"),
-			indi.GetService[*services.D](r, "D"),
-		)
-	})
-	// 15 seconds
-	indi.SetService(sr, "B", func(r *indi.Registry) *services.B {
-		return services.NewServiceB(indi.GetService[*services.C](r, "C"))
-	})
-	// 5 seconds
-	indi.SetService(sr, "C", func(r *indi.Registry) *services.C {
-		return services.NewServiceC()
-	})
-	// 10 seconds
-	indi.SetService(sr, "D", func(r *indi.Registry) *services.D {
-		return services.NewServiceD()
-	})
-
-	now := time.Now()
-	indi.InitAll(sr)
-	println(time.Since(now).String()) // should be 30 seconds, not 40
+// 10 seconds
+    indi.SetService("A", func(r *indi.Registry) *services.A {
+        return services.NewServiceA(
+            indi.GetServiceFromRegistry[*services.B](r, "B"),
+            indi.GetServiceFromRegistry[*services.D](r, "D"),
+        )
+    })
+    // 15 seconds
+    indi.SetService("B", func(r *indi.Registry) *services.B {
+        return services.NewServiceB(indi.GetServiceFromRegistry[*services.C](r, "C"))
+    })
+    // 5 seconds
+    indi.SetService("C", func(r *indi.Registry) *services.C {
+        return services.NewServiceC()
+    })
+    // 10 seconds
+    indi.SetService("D", func(r *indi.Registry) *services.D {
+        return services.NewServiceD()
+    })
+    
+    now := time.Now()
+    indi.Init()
+    println(time.Since(now).String()) // should be 30 seconds, not 40
 }
 ```
 
