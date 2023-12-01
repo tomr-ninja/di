@@ -1,6 +1,7 @@
 package indi_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -8,163 +9,155 @@ import (
 	"github.com/tomr-ninja/indi"
 )
 
-type testService struct {
-	ready bool
-	deps  []*testService
+const singleServiceInitTime = time.Millisecond
+
+// Dependency tree:
+// A -> B -> C
+// A -> D
+
+type (
+	A struct{ x int }
+	B struct{ x int }
+	C struct{ x int }
+	D struct{ x int }
+
+	IB interface {
+		B() int
+	}
+	IC interface {
+		C() int
+	}
+	ID interface {
+		D() int
+	}
+)
+
+func (b *B) B() int {
+	return b.x
 }
 
-func createTestService(d time.Duration, deps ...*testService) (*testService, error) {
-	time.Sleep(d)
+func (c *C) C() int {
+	return c.x
+}
 
-	return &testService{true, deps}, nil
+func (d *D) D() int {
+	return d.x
+}
+
+func NewA(b IB, d ID) (*A, error) {
+	time.Sleep(singleServiceInitTime)
+
+	return &A{x: b.B() + d.D()}, nil
+}
+
+func NewB(c IC) (*B, error) {
+	time.Sleep(singleServiceInitTime)
+
+	return &B{x: c.C() * 2}, nil
+}
+
+func NewC() (*C, error) {
+	time.Sleep(singleServiceInitTime)
+
+	return &C{x: 30}, nil
+}
+
+func NewD() (*D, error) {
+	time.Sleep(singleServiceInitTime)
+
+	return &D{x: 30}, nil
+}
+
+func TestInitDefaultGraph(t *testing.T) {
+	var (
+		a A
+		b B
+		c C
+		d D
+	)
+
+	indi.Declare(&a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.Declare(&b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.Declare(&c, NewC)
+	indi.Declare(&d, NewD)
+
+	now := time.Now()
+	if err := indi.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(now) >= 4*singleServiceInitTime {
+		t.Fatal("unexpectedly long init time")
+	}
+
+	if a.x != 90 || b.x != 60 || c.x != 30 || d.x != 30 {
+		t.Fatal("unexpected values")
+	}
 }
 
 func TestInit(t *testing.T) {
-	// Dependency tree:
-	// T1 -> T2 -> T3
-	// |
-	// +---> T4 -> T5
-	//       |
-	//       +---> T6
+	var (
+		a A
+		b B
+		c C
+		d D
 
-	indi.Set("T1", func(r *indi.Registry) (_ *testService, err error) {
-		var t2, t4 *testService
-		if t2, err = indi.GetFromRegistry[*testService](r, "T2"); err != nil {
-			return nil, err
-		}
-		if t4, err = indi.GetFromRegistry[*testService](r, "T4"); err != nil {
-			return nil, err
-		}
+		g = make(indi.Graph)
+	)
 
-		return createTestService(10*time.Millisecond, t2, t4)
-	})
-	indi.Set("T2", func(r *indi.Registry) (_ *testService, err error) {
-		var t3 *testService
-		if t3, err = indi.GetFromRegistry[*testService](r, "T3"); err != nil {
-			return nil, err
-		}
+	indi.DeclareOnGraph(g, &a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.DeclareOnGraph(g, &b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.DeclareOnGraph(g, &c, NewC)
+	indi.DeclareOnGraph(g, &d, NewD)
 
-		return createTestService(10*time.Millisecond, t3)
-	})
-	indi.Set("T3", func(r *indi.Registry) (_ *testService, err error) {
-		return createTestService(
-			10 * time.Millisecond,
-		)
-	})
-	indi.Set("T4", func(r *indi.Registry) (_ *testService, err error) {
-		var t5, t6 *testService
-		if t5, err = indi.GetFromRegistry[*testService](r, "T5"); err != nil {
-			return nil, err
-		}
-		if t6, err = indi.GetFromRegistry[*testService](r, "T6"); err != nil {
-			return nil, err
-		}
-
-		return createTestService(10*time.Millisecond, t5, t6)
-	})
-	indi.Set("T5", func(r *indi.Registry) (_ *testService, err error) {
-		return createTestService(10 * time.Millisecond)
-	})
-	indi.Set("T6", func(r *indi.Registry) (_ *testService, err error) {
-		return createTestService(10 * time.Millisecond)
-	})
-
-	start := time.Now()
-	if err := indi.Init(); err != nil {
-		t.Error(err)
+	now := time.Now()
+	if err := indi.InitGraph(g); err != nil {
+		t.Fatal(err)
 	}
-	spent := time.Since(start)
+	if time.Since(now) >= 4*singleServiceInitTime {
+		t.Fatal("unexpectedly long init time")
+	}
 
-	if spent > 32*time.Millisecond { // +2ms threshold
-		t.Errorf("init was supposed to finish by ~30ms, but actually took %v", spent)
+	if a.x != 90 || b.x != 60 || c.x != 30 || d.x != 30 {
+		t.Fatal("unexpected values")
 	}
 }
 
-func TestInit_FailEarly(t *testing.T) {
-	// Dependency tree:
-	// T1 -> T2
-	// T2 fails, no need to wait for T1 then
+func TestFailingConstructor(t *testing.T) {
+	var (
+		a A
+		b B
+		c C
+		d D
 
-	indi.Set("T1", func(r *indi.Registry) (_ *testService, err error) {
-		var t2 *testService
-		if t2, err = indi.GetFromRegistry[*testService](r, "T2"); err != nil {
-			return nil, err
-		}
+		g = make(indi.Graph)
+	)
 
-		return createTestService(10*time.Millisecond, t2)
-	})
-	indi.Set("T2", func(r *indi.Registry) (*testService, error) {
-		time.Sleep(time.Millisecond)
+	indi.DeclareOnGraph(g, &a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.DeclareOnGraph(g, &b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.DeclareOnGraph(g, &c, NewC)
+	indi.DeclareOnGraph(g, &d, func() (*D, error) { return nil, fmt.Errorf("test error") })
 
-		return nil, fmt.Errorf("T2 failed")
-	})
-
-	start := time.Now()
-	err := indi.Init()
-	if spent := time.Since(start); spent > 2*time.Millisecond { // +1ms threshold
-		t.Errorf("init was supposed to finish by ~1ms, but actually took %v", spent)
-	}
-	if err == nil {
-		t.Error("expected error")
+	if err := indi.InitGraph(g); err.Error() != "test error" {
+		t.Errorf("expected %q, got %q", "test error", err.Error())
 	}
 }
 
-func TestGetService(t *testing.T) {
-	t.Parallel()
-	indi.Set("T1", func(r *indi.Registry) (*testService, error) {
-		return createTestService(
-			10 * time.Millisecond,
-		)
-	})
+func TestInvalidConstructor(t *testing.T) {
+	var (
+		a A
+		b B
+		c C
+		d D
 
-	for i := 0; i < 10; i++ {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			t.Parallel()
+		g = make(indi.Graph)
+	)
 
-			start := time.Now()
-			s, err := indi.Get[*testService]("T1")
-			if err != nil {
-				t.Error(err)
-			}
-			if s.ready != true {
-				t.Error()
-			}
-			spent := time.Since(start)
-			if spent < 10*time.Millisecond || spent > 12*time.Millisecond { // +2ms threshold
-				t.Errorf("init was supposed to finish by ~10ms, but actually took %v", spent)
-			}
-		})
+	indi.DeclareOnGraph(g, &a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.DeclareOnGraph(g, &b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.DeclareOnGraph(g, &c, NewC)
+	indi.DeclareOnGraph(g, &d, func() (*D, error) { return nil, nil }) // must return non-nil value if no error
+
+	if err := indi.InitGraph(g); !errors.Is(err, indi.ErrInvalidConstructor) {
+		t.Errorf("expected %v, got %v", indi.ErrInvalidConstructor, err)
 	}
-}
-
-func TestPanic(t *testing.T) {
-	t.Run("get unregistered service", func(t *testing.T) {
-		assertPanic(t, func(t *testing.T) {
-			_, _ = indi.GetFromRegistry[*testService](indi.NewRegistry(), "T42")
-		})
-	})
-
-	t.Run("get service with wrong type", func(t *testing.T) {
-		type testService2 struct{}
-		r := indi.NewRegistry()
-
-		indi.SetFromRegistry[*testService](r, "T1", func(r *indi.Registry) (*testService, error) {
-			return createTestService(0)
-		})
-
-		assertPanic(t, func(t *testing.T) {
-			_, _ = indi.GetFromRegistry[*testService2](r, "T1")
-		})
-	})
-
-}
-
-func assertPanic(t *testing.T, f func(*testing.T)) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("The code did not panic")
-		}
-	}()
-
-	f(t)
 }

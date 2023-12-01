@@ -1,104 +1,43 @@
 package indi
 
 import (
-	"context"
 	"errors"
-	"sync"
-
-	"golang.org/x/sync/errgroup"
 )
 
 var (
-	defaultRegistry = NewRegistry()
-
-	errUnregisteredService = errors.New("tried to get unregistered service")
-	errWrongDefType        = errors.New("wrong def type")
+	ErrInvalidConstructor = errors.New("constructor must return non-nil value if there is no error")
 )
 
-type ServiceConstructor[S any] func(*Registry) (S, error)
+var DefaultGraph = make(Graph)
 
-// Registry is a collection of services.
-type (
-	Registry struct {
-		services map[string]any // map[string]serviceDef
-	}
-	serviceDef[S any] struct {
-		service     S
-		constructor ServiceConstructor[S]
-		once        sync.Once
-	}
-)
+func DeclareOnGraph[T any](g Graph, ptr *T, constructor func() (*T, error), deps ...any) {
+	cb := func(ptr any) error {
+		v, err := constructor()
+		if err != nil {
+			return err
+		} else if v == nil {
+			return ErrInvalidConstructor
+		}
 
-// NewRegistry creates a new Registry.
-func NewRegistry() *Registry {
-	return &Registry{
-		services: make(map[string]any),
+		*(ptr.(*T)) = *v
+
+		return nil
 	}
+
+	g.addNode(ptr, cb, deps...)
 }
 
-func SetFromRegistry[S any](r *Registry, name string, constructor ServiceConstructor[S]) {
-	r.services[name] = &serviceDef[S]{
-		constructor: constructor,
-		once:        sync.Once{},
-	}
-}
-
-func GetFromRegistry[S any](r *Registry, name string) (S, error) {
-	c, ok := r.services[name]
-	if !ok {
-		panic(errUnregisteredService)
-	}
-
-	def, ok := c.(*serviceDef[S])
-	if !ok {
-		panic(errWrongDefType)
-	}
-
-	return def.service, def.init(r)
-}
-
-func Set[S any](name string, constructor ServiceConstructor[S]) {
-	SetFromRegistry[S](defaultRegistry, name, constructor)
-}
-
-func Get[S any](name string) (S, error) {
-	return GetFromRegistry[S](defaultRegistry, name)
-}
-
-func (def *serviceDef[S]) init(r *Registry) (err error) {
-	def.once.Do(func() {
-		def.service, err = def.constructor(r)
-	})
+func InitGraph(g Graph) error {
+	err := g.init()
+	g = make(Graph)
 
 	return err
 }
 
-func InitRegistry(r *Registry) error {
-	type initable interface {
-		init(r *Registry) error
-	}
-
-	eg, ctx := errgroup.WithContext(context.Background())
-	for _, c := range r.services {
-		def := c.(initable)
-		eg.Go(func() error {
-			ch := make(chan error)
-			go func() {
-				ch <- def.init(r)
-			}()
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case err := <-ch:
-				return err
-			}
-		})
-	}
-
-	return eg.Wait()
+func Declare[T any](ptr *T, constructor func() (*T, error), deps ...any) {
+	DeclareOnGraph(DefaultGraph, ptr, constructor, deps...)
 }
 
 func Init() error {
-	return InitRegistry(defaultRegistry)
+	return InitGraph(DefaultGraph)
 }

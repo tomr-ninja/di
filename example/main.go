@@ -1,50 +1,90 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/tomr-ninja/indi"
-	"github.com/tomr-ninja/indi/example/services"
 )
 
 // Dependency tree:
 // A -> B -> C
 // A -> D
 
+type (
+	A struct{ x int }
+	B struct{ x int }
+	C struct{ x int }
+	D struct{ x int }
+
+	IB interface {
+		B() int
+	}
+	IC interface {
+		C() int
+	}
+	ID interface {
+		D() int
+	}
+)
+
+func (b *B) B() int {
+	return b.x
+}
+
+func (c *C) C() int {
+	return c.x
+}
+
+func (d *D) D() int {
+	return d.x
+}
+
+// NOTE: constructors accept interfaces, not concrete types
+
+func NewA(b IB, d ID) (*A, error) {
+	time.Sleep(time.Second)
+
+	return &A{x: b.B() + d.D()}, nil
+}
+
+func NewB(c IC) (*B, error) {
+	time.Sleep(time.Second)
+
+	return &B{x: c.C() * 2}, nil
+}
+
+func NewC() (*C, error) {
+	time.Sleep(time.Second)
+
+	return &C{x: 30}, nil
+}
+
+func NewD() (*D, error) {
+	time.Sleep(time.Second)
+
+	return &D{x: 30}, nil
+}
+
 func main() {
-	indi.Set("A", func(r *indi.Registry) (a *services.A, err error) {
-		var (
-			b *services.B
-			d *services.D
-		)
-		if b, err = indi.GetFromRegistry[*services.B](r, "B"); err != nil {
-			return nil, err
-		}
-		if d, err = indi.GetFromRegistry[*services.D](r, "D"); err != nil {
-			return nil, err
-		}
+	var (
+		// NOTE: actual types here
+		a A
+		b B
+		c C
+		d D
+	)
 
-		return services.NewServiceA(b, d) // 10 seconds
-	})
-	indi.Set("B", func(r *indi.Registry) (b *services.B, err error) {
-		var c *services.C
-		if c, err = indi.GetFromRegistry[*services.C](r, "C"); err != nil {
-			return nil, err
-		}
-
-		return services.NewServiceB(c) // 15 seconds
-	})
-	indi.Set("C", func(r *indi.Registry) (*services.C, error) {
-		return services.NewServiceC() // 5 seconds
-	})
-	indi.Set("D", func(r *indi.Registry) (*services.D, error) {
-		return services.NewServiceD() // 10 seconds
-	})
+	indi.Declare(&a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.Declare(&b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.Declare(&c, NewC)
+	indi.Declare(&d, NewD)
 
 	now := time.Now()
 	if err := indi.Init(); err != nil {
 		panic(err)
 	}
 
-	println(time.Since(now).Seconds()) // should be 30 seconds, not 40
+	fmt.Println(time.Since(now)) // 3 seconds, not 4
+	fmt.Println(a, b, c, d)      // {90} {60} {30} {30}
 }
