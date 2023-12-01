@@ -1,4 +1,4 @@
-# **indi** simple lazy initializer 
+# **indi**: simple lazy initializer 
 
 Parallelize initialization of your dependencies with ease.
 
@@ -14,6 +14,8 @@ func main() {
     c := c.New(a, b)
 }
 ```
+
+Every step requires some time. You want to spend as little time as possible.
 
 Now, it's not hard to see that the way initialization process goes is kind of the best already. You can't start
 with initializing `c` because it depends on `a` and `b`. And `b` depends on `a`. And you can't parallelize anything.
