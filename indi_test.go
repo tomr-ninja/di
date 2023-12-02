@@ -142,6 +142,100 @@ func TestFailingConstructor(t *testing.T) {
 	}
 }
 
+func TestLoad(t *testing.T) {
+	var (
+		a A
+		b B
+		c C
+		d D
+
+		g = make(indi.Graph)
+	)
+
+	indi.DeclareOnGraph(g, &a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.DeclareOnGraph(g, &b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.DeclareOnGraph(g, &c, NewC)
+	indi.DeclareOnGraph(g, &d, NewD)
+
+	if err := indi.LoadFromGraph(g, &b); err != nil {
+		t.Fatal(err)
+	}
+	if a.x != 0 || b.x != 60 || c.x != 30 || d.x != 0 { // a, d are not initialized
+		t.Fatal("unexpected values")
+	}
+}
+
+func TestLoadDefaultGraph(t *testing.T) {
+	var (
+		a A
+		b B
+		c C
+		d D
+	)
+
+	indi.Declare(&a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.Declare(&b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.Declare(&c, NewC)
+	indi.Declare(&d, NewD)
+
+	if err := indi.Load(&b); err != nil {
+		t.Fatal(err)
+	}
+	if a.x != 0 || b.x != 60 || c.x != 30 || d.x != 0 { // a, d are not initialized
+		t.Fatal("unexpected values")
+	}
+}
+
+func TestLazyLoad(t *testing.T) {
+	var (
+		a A
+		b B
+		c C
+		d D
+
+		g = make(indi.Graph)
+	)
+
+	indi.DeclareOnGraph(g, &a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.DeclareOnGraph(g, &b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.DeclareOnGraph(g, &c, NewC)
+	indi.DeclareOnGraph(g, &d, NewD)
+
+	cb := indi.LazyLoadFromGraph[B, IB](g, &b)
+	v, err := cb()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if v.B() != 60 {
+		t.Fatal("unexpected value")
+	}
+}
+
+func TestLazyLoadDefaultGraph(t *testing.T) {
+	var (
+		a A
+		b B
+		c C
+		d D
+	)
+
+	indi.Declare(&a, func() (*A, error) { return NewA(&b, &d) }, &b, &d)
+	indi.Declare(&b, func() (*B, error) { return NewB(&c) }, &c)
+	indi.Declare(&c, NewC)
+	indi.Declare(&d, NewD)
+
+	cb := indi.LazyLoad[B, IB](&b)
+	v, err := cb()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if v.B() != 60 {
+		t.Fatal("unexpected value")
+	}
+}
+
 func TestInvalidConstructor(t *testing.T) {
 	var (
 		a A
