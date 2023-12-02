@@ -1,10 +1,10 @@
-# **indi**: simple lazy initializer 
+# **indi**: simple initialization optimizer 
 
 Parallelize initialization of your dependencies with ease.
 
 ## The problem
 
-Imagine you have a giant application that access same stateful resources in different places. You write something like
+Imagine you have a big application that access same stateful resources in different places. You write something like
 this (go style!):
 
 ```go
